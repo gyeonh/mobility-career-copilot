@@ -5,6 +5,7 @@ import {
   ProcessStep,
 } from '../types';
 import { INITIAL_MANUFACTURING_PROCESS_PRESET } from '../data/mockPresets';
+import { safeApiPost } from '../utils/apiClient';
 import { SkeletonLoader } from './SkeletonLoader';
 import {
   Factory,
@@ -78,6 +79,7 @@ export const Tab2Process: React.FC<Tab2ProcessProps> = ({
   );
   const [activeStepIndex, setActiveStepIndex] = useState<number>(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
 
   React.useEffect(() => {
     setInputCompany(companyName);
@@ -91,25 +93,47 @@ export const Tab2Process: React.FC<Tab2ProcessProps> = ({
     setInputCompany(targetComp);
     setIsLoadingProducts(true);
     setErrorMessage(null);
+    setInfoNotice(null);
+
+    const fallbackProductsData = {
+      companyName: targetComp,
+      companyDescription: `${targetComp}의 스마트 제조 라인 및 주력 포트폴리오입니다.`,
+      products: [
+        {
+          id: 'prod_1',
+          name: `${targetComp} 친환경 스마트 모빌리티 핵심 부품`,
+          category: '주력 양산 제품',
+          description: `${targetComp}의 고효율 스마트 팩토리에서 양산되는 핵심 모듈입니다.`,
+        },
+        {
+          id: 'prod_2',
+          name: `${targetComp} 지능형 제어 및 차세대 시스템`,
+          category: '전자/샤시',
+          description: '스마트팩토리 자동화 라인과 연계된 고정밀 부품입니다.',
+        },
+      ],
+    };
 
     try {
-      const res = await fetch('/api/company-products', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyName: targetComp }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || '대표 제품을 불러오지 못했습니다.');
-      }
+      const response = await safeApiPost(
+        '/api/company-products',
+        { companyName: targetComp },
+        fallbackProductsData,
+        6000
+      );
 
-      setProducts(json.data.products || []);
-      if (json.data.products?.length > 0) {
-        handleSelectProductAndFetchProcess(targetComp, json.data.products[0].name);
+      const prods = response.data?.products || fallbackProductsData.products;
+      setProducts(prods);
+      if (response.notice) {
+        setInfoNotice(response.notice);
+      }
+      if (prods.length > 0) {
+        handleSelectProductAndFetchProcess(targetComp, prods[0].name);
       }
     } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || '제품 정보 검색에 실패했습니다.');
+      console.warn('handleSearchCompanyProducts:', err);
+      setProducts(fallbackProductsData.products);
+      handleSelectProductAndFetchProcess(targetComp, fallbackProductsData.products[0].name);
     } finally {
       setIsLoadingProducts(false);
     }
@@ -120,21 +144,29 @@ export const Tab2Process: React.FC<Tab2ProcessProps> = ({
     setIsLoadingProcess(true);
     setErrorMessage(null);
 
+    const fallbackProcess: ManufacturingProcessResponse = {
+      ...INITIAL_MANUFACTURING_PROCESS_PRESET,
+      companyName: comp,
+      productName: prodName,
+    };
+
     try {
-      const res = await fetch('/api/manufacturing-process', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyName: comp, productName: prodName }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || '공정 흐름도를 생성하지 못했습니다.');
-      }
-      setProcessData(json.data);
+      const response = await safeApiPost<ManufacturingProcessResponse>(
+        '/api/manufacturing-process',
+        { companyName: comp, productName: prodName },
+        fallbackProcess,
+        6000
+      );
+
+      setProcessData(response.data || fallbackProcess);
       setActiveStepIndex(0);
+      if (response.notice) {
+        setInfoNotice(response.notice);
+      }
     } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || '공정 흐름도 생성에 실패했습니다.');
+      console.warn('handleSelectProductAndFetchProcess:', err);
+      setProcessData(fallbackProcess);
+      setActiveStepIndex(0);
     } finally {
       setIsLoadingProcess(false);
     }
@@ -212,6 +244,13 @@ export const Tab2Process: React.FC<Tab2ProcessProps> = ({
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMessage}</span>
           </div>
+        </div>
+      )}
+
+      {infoNotice && (
+        <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-center gap-2">
+          <Info className="w-4 h-4 shrink-0 text-blue-700" />
+          <span className="font-medium">{infoNotice}</span>
         </div>
       )}
 

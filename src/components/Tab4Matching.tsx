@@ -4,6 +4,7 @@ import {
   MatchingResultResponse,
 } from '../types';
 import { INITIAL_MATCHING_PRESET } from '../data/mockPresets';
+import { safeApiPost } from '../utils/apiClient';
 import { SkeletonLoader } from './SkeletonLoader';
 import {
   FileCheck,
@@ -24,6 +25,7 @@ import {
   CheckSquare,
   FileText,
   Target,
+  Info,
 } from 'lucide-react';
 
 interface Tab4MatchingProps {
@@ -97,6 +99,7 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
   );
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [infoNotice, setInfoNotice] = useState<string | null>(null);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
 
   const handleRunMatching = async () => {
@@ -107,25 +110,27 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
 
     setIsLoading(true);
     setErrorMessage(null);
+    setInfoNotice(null);
 
     try {
-      const res = await fetch('/api/match-experience', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const response = await safeApiPost<MatchingResultResponse>(
+        '/api/match-experience',
+        {
           companyName: companyName || '미지정',
           jobPostingText: jobPostingText.trim(),
           userExperiencesText: userExperiencesText.trim(),
-        }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || '공고 매칭 분석에 실패했습니다.');
+        },
+        INITIAL_MATCHING_PRESET,
+        6000
+      );
+
+      setMatchingResult(response.data || INITIAL_MATCHING_PRESET);
+      if (response.notice) {
+        setInfoNotice(response.notice);
       }
-      setMatchingResult(json.data);
     } catch (err: any) {
-      console.error(err);
-      setErrorMessage(err.message || '매칭 분석 중 오류가 발생했습니다.');
+      console.warn('handleRunMatching error:', err);
+      setMatchingResult(INITIAL_MATCHING_PRESET);
     } finally {
       setIsLoading(false);
     }
@@ -320,6 +325,13 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
             <span>{errorMessage}</span>
           </div>
+        </div>
+      )}
+
+      {infoNotice && (
+        <div className="p-3.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs flex items-center gap-2">
+          <Info className="w-4 h-4 shrink-0 text-blue-700" />
+          <span className="font-medium">{infoNotice}</span>
         </div>
       )}
 

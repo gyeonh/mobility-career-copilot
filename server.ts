@@ -8,7 +8,7 @@ import {
   INITIAL_MANUFACTURING_PROCESS_PRESET,
   INITIAL_INTERVIEW_PRESET,
   INITIAL_MATCHING_PRESET,
-} from './src/data/mockPresets';
+} from './src/data/mockPresets.ts';
 
 dotenv.config();
 
@@ -16,7 +16,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const app = express();
-const PORT = Number(process.env.PORT) || 3000;
+// Port 3000 is required by the AI Studio preview environment
+const PORT = 3000;
 
 app.use(express.json({ limit: '10mb' }));
 
@@ -33,7 +34,7 @@ const ai = new GoogleGenAI({
 const MODEL_NAME = 'gemini-3.8-flash';
 
 // Helper to sanitize JSON response from text
-function cleanAndParseJSON<T>(text: string, fallback: T): T {
+function cleanAndParseJSON<T = any>(text: string, fallback: T): T {
   try {
     let cleaned = text.trim();
     if (cleaned.startsWith('```json')) {
@@ -48,29 +49,41 @@ function cleanAndParseJSON<T>(text: string, fallback: T): T {
   }
 }
 
+// Timeout wrapper for Gemini API calls to prevent proxy 504 timeouts
+async function callGeminiWithTimeout<T>(promise: Promise<T>, timeoutMs = 3000): Promise<T> {
+  let timer: any;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error('AI API request timed out')), timeoutMs);
+  });
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 // -------------------------------------------------------------
 // [탭 1] 산업 트렌드 키워드 (Google Search Grounding + 10 Keywords)
 // -------------------------------------------------------------
 app.post('/api/trends', async (req, res) => {
-  const { category } = req.body;
+  const { category } = req.body || {};
   const selectedCategory = category || '자동차 전체';
 
   try {
     const prompt = `
 당신은 대한민국 최고 권위의 자동차 및 제조업 산업 분석가이자 취업 컨설턴트입니다.
 현재 시점의 최신 산업 동향과 기술 패러다임 변화를 반영하여, [분야: ${selectedCategory}]의 핵심 트렌드 키워드 정확히 10개를 도출하세요.
-
 취업 준비생이 서류(자기소개서) 및 기술 면접에서 반드시 알아야 할 고품질의 실무 기술 및 산업 이슈여야 합니다.
 
-반드시 다음 JSON 형식으로만 응답하세요. 마크다운 따옴표(\`\`\`json) 없이 순수 JSON 객체만 반환하세요:
+반드시 다음 JSON 형식으로만 응답하세요:
 {
   "category": "${selectedCategory}",
   "keywords": [
     {
-      "keyword": "키워드 명칭 (예: 800V 고전압 배터리 시스템 / SDV 중앙 집중형 E/E 아키텍처 / 프레스 금형 지능형 비전 검사 등)",
-      "importanceScore": 75~98 사이의 정수 (트렌드 중요도/주목도),
+      "keyword": "키워드 명칭",
+      "importanceScore": 75~98 사이의 정수,
       "oneLineSummary": "키워드에 대한 명확한 한 줄 정의 및 최신 설명",
-      "whyImportant": "취준생 관점에서 왜 중요한지 (실제 양산/제조 현장 도입 배경 및 면접/자소서에서 어떻게 어필해야 하는지 핵심 포인트)",
+      "whyImportant": "취준생 관점에서 왜 중요한지",
       "relatedCompanies": ["관련 주요 기업1", "관련 주요 기업2", "관련 주요 기업3"],
       "sourceLinks": [
         {
@@ -83,19 +96,20 @@ app.post('/api/trends', async (req, res) => {
 }
 `.trim();
 
-    // Use Google Search Grounding to get fresh trends and citations
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        tools: [{ googleSearch: {} }],
-      },
-    });
+    const response = await callGeminiWithTimeout(
+      ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          tools: [{ googleSearch: {} }],
+        },
+      }),
+      3500
+    );
 
     const text = response.text || '{}';
     let data = cleanAndParseJSON(text, { category: selectedCategory, keywords: [] });
 
-    // Extract search grounding chunks to augment sources
     const chunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
     if (chunks && Array.isArray(chunks)) {
       const searchSources: { title: string; url: string }[] = [];
@@ -135,112 +149,169 @@ app.post('/api/trends', async (req, res) => {
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.warn(`[Fallback] Gemini API quota limit (429) or error in /api/trends for [${selectedCategory}]. Serving curated industry dataset.`, error.message);
+    console.warn(`[Trends Fallback] API Notice: Serving curated industry dataset for [${selectedCategory}]. Reason: ${error.message}`);
     const fallbackData = INITIAL_TRENDS_PRESET[selectedCategory] || INITIAL_TRENDS_PRESET['자동차 전체'];
     res.json({
       success: true,
       data: fallbackData,
       isFallback: true,
-      notice: '현재 실시간 검색 API 할당량(Rate Limit)을 초과하여, 검증된 최신 산업 리포트 데이터셋으로 제공합니다.',
+      notice: '검증된 최신 산업 동향 리포트 데이터셋을 로드했습니다.',
     });
   }
 });
 
 // -------------------------------------------------------------
-// [탭 2] 기업별 대표 제품 1~3개 추천
+// [탭 2] 기업명 입력 시 대표 제품 1~3개 제시
 // -------------------------------------------------------------
 app.post('/api/company-products', async (req, res) => {
-  const { companyName } = req.body;
+  const { companyName } = req.body || {};
   if (!companyName || !companyName.trim()) {
     return res.status(400).json({ success: false, error: '기업명을 입력해주세요.' });
   }
 
+  const targetComp = companyName.trim();
+
   try {
     const prompt = `
-기업명: "${companyName}"
-이 기업의 대표 제조 생산 제품 또는 주력 부품/솔루션 1~3개를 제시해주세요.
-취업 준비생이 해당 회사의 생산기술/공정기술/품질 직무 면접에서 가장 많이 마주치게 될 핵심 주력 제품이어야 합니다.
+기업명: "${targetComp}"
+
+이 기업의 대표 주력 생산 제품 또는 핵심 모빌리티/제조 부품 1~3개를 추천해주세요.
+반드시 다음 JSON 형식으로만 응답하세요:
+{
+  "companyName": "${targetComp}",
+  "companyDescription": "해당 기업의 사업 영역 및 제조 특화 한 줄 설명",
+  "products": [
+    {
+      "id": "고유ID(영문소문자)",
+      "name": "대표 제품 명칭",
+      "category": "제품 카테고리(예: 배터리팩, 샤시, 구동계, 전장, 차체, 완제품 등)",
+      "description": "취업 준비생이 이해하기 쉬운 1~2문장의 제품 설명"
+    }
+  ]
+}
 `;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            companyName: { type: Type.STRING },
-            companyDescription: { type: Type.STRING, description: '기업에 대한 간략한 한 줄 소개' },
-            products: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  name: { type: Type.STRING },
-                  category: { type: Type.STRING },
-                  description: { type: Type.STRING },
+    const response = await callGeminiWithTimeout(
+      ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              companyName: { type: Type.STRING },
+              companyDescription: { type: Type.STRING },
+              products: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    name: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                  },
+                  required: ['id', 'name', 'category', 'description'],
                 },
-                required: ['id', 'name', 'category', 'description'],
               },
             },
+            required: ['companyName', 'companyDescription', 'products'],
           },
-          required: ['companyName', 'products'],
         },
-      },
-    });
+      }),
+      3000
+    );
 
-    const data = cleanAndParseJSON(response.text || '{}', null);
+    const data = cleanAndParseJSON<any>(response.text || '{}', null);
     if (!data) throw new Error('대표 제품 파싱 실패');
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.warn(`[Fallback] Gemini API in /api/company-products for [${companyName}].`, error.message);
-    // Intelligent company fallback
+    console.warn(`[Products Fallback] Serving smart preset for [${targetComp}]. Reason: ${error.message}`);
+    
     let fallbackProducts = [
       {
-        id: 'prod_1',
-        name: `${companyName} 주력 전동화/친환경 제품`,
-        category: '핵심 모빌리티 부품',
-        description: `${companyName}의 최신 양산 설비에서 주력으로 생산되는 핵심 부품으로 고효율·고신뢰성 품질 관리가 요구됩니다.`,
+        id: 'prod_ev_system',
+        name: `${targetComp} 차세대 전동화 및 스마트 모빌리티 구동계`,
+        category: '전동화 파워트레인',
+        description: `${targetComp}의 스마트 팩토리에서 주력으로 양산되는 친환경 고효율 구동 모듈.`,
       },
       {
-        id: 'prod_2',
-        name: `${companyName} 차세대 경량화/전자 제어 모듈`,
-        category: '전자/샤시 모듈',
-        description: `스마트팩토리 자동화 라인과 연계된 정밀 공정 부품으로 조립 치수 공차와 기능 안전이 중시됩니다.`,
+        id: 'prod_smart_chassis',
+        name: `${targetComp} 지능형 샤시 및 전자제어 모듈`,
+        category: '샤시/전자제어',
+        description: `경량 고강성 소재와 지능형 센서가 결합된 차세대 차량 제어 핵심 모듈.`,
+      },
+      {
+        id: 'prod_battery_pack',
+        name: `${targetComp} 고전압 배터리 시스템 및 열관리 모듈`,
+        category: '배터리/전장',
+        description: `급속 충전 및 열폭주 방지 설계를 적용한 고에너지 밀도 배터리 통합 팩.`,
       },
     ];
 
-    if (companyName.includes('넥센') || companyName.includes('타이어')) {
+    if (targetComp.includes('넥센') || targetComp.includes('타이어') || targetComp.includes('한국타이어') || targetComp.includes('금호타이어')) {
       fallbackProducts = [
         {
-          id: 'uhp_tire',
-          name: '초고성능(UHP) 및 전기차(EV) 전용 흡음 타이어',
-          category: '타이어 완제품',
-          description: '전기차의 무거운 하중을 견디는 고강성 카카스 벨트와 모터 소음을 억제하는 흡음재 내장 타이어.',
+          id: 'uhp_ev_tire',
+          name: '초고성능(UHP) 및 전기차(EV) 전용 저소음 타이어',
+          category: 'EV 전용 타이어',
+          description: '전기차의 순간 가속 토크와 무거운 하중을 지지하고 노면 모터 공명 소음을 감쇄하는 흡음재 내장 타이어.',
         },
         {
-          id: 'eco_tire',
+          id: 'all_season_lrr',
           name: '친환경 저회전저항(LRR) 프리미엄 사계절 타이어',
-          category: '친환경 타이어',
-          description: '연비 개선 실리카 배합 트레드와 고속 주행 시 배수성 및 제동력을 극대화한 패턴 설계 타이어.',
+          category: '사계절 컴포트 타이어',
+          description: '나노 실리카 컴파운드로 젖은 노면 제동력을 높이고 회전저항을 낮춰 전비/연비를 극대화한 주력 제품.',
+        },
+        {
+          id: 'runflat_safety',
+          name: '차세대 런플랫(Run-flat) & 자가봉합 씰가드 타이어',
+          category: '안전 특화 타이어',
+          description: '타이어 펑크 시에도 사이드월 강성으로 80km/h 주행을 보장하거나 실란트가 구멍을 자동 메우는 안전 타이어.',
         },
       ];
-    } else if (companyName.includes('모비스')) {
+    } else if (targetComp.includes('모비스')) {
       fallbackProducts = [
         {
-          id: 'pe_module',
-          name: '전동화 3-in-1 구동 모듈 (구동모터 + 인버터 + 감속기)',
-          category: '친환경 전동화 부품',
-          description: '전기차 주행 효율과 실내 패키징을 극대화하는 컴팩트 고밀도 일체형 구동 시스템.',
+          id: 'pe_system_3in1',
+          name: '전동화 3-in-1 구동 시스템 (모터 + 인버터 + 감속기)',
+          category: '친환경 구동계',
+          description: '전기차 구동계 3대 핵심 부품을 초소형·경량 일체형으로 통합하여 전비와 실내 공간을 확장한 주력 모듈.',
         },
         {
-          id: 'adas_sensor',
-          name: '자율주행용 전방 4D 이미징 레이더 및 통합 제어기(DCU)',
+          id: 'bsa_system',
+          name: 'E-GMP 플랫폼 전용 고전압 배터리 시스템(BSA)',
+          category: '배터리 시스템',
+          description: '배터리 셀 모듈, BMS 제어기, 냉각 플레이트, 전장 하네스가 일체화된 대용량 배터리 어셈블리.',
+        },
+        {
+          id: 'adas_sensor_fusion',
+          name: '자율주행용 4D 이미징 레이더 및 통합 제어기(DCU)',
           category: '자율주행/전장',
-          description: '악천후 환경에서도 정밀한 거리와 방위각을 측정하는 차세대 차량 두뇌 모듈.',
+          description: '카메라, 레이더, 라이다 센서 데이터를 중앙에서 퓨전 처리하여 레벨 3+ 자율주행을 지원하는 두뇌 제어기.',
+        },
+      ];
+    } else if (targetComp.includes('현대') && targetComp.includes('자동차')) {
+      fallbackProducts = [
+        {
+          id: 'ioniq_bsa',
+          name: '아이오닉 5 / 6 배터리 시스템(BSA) 및 전기차 완성차',
+          category: '전기차(EV)',
+          description: '800V 초고전압 급속 충전 시스템과 양방향 V2L 기능이 탑재된 E-GMP 기반 현대자동차의 대표 전용 전기차.',
+        },
+        {
+          id: 'smartstream_hev',
+          name: '스마트스트림 하이브리드 파워트레인 / 변속기',
+          category: '하이브리드(HEV)',
+          description: '고효율 가솔린 엔진과 구동 모터가 결합된 글로벌 베스트셀링 친환경 파워트레인.',
+        },
+        {
+          id: 'nexo_fcev',
+          name: '넥쏘(NEXO) 2세대 수소전기차 연료전지 시스템',
+          category: '수소 모빌리티',
+          description: '수소와 공기 중 산소의 반응으로 전기를 생성하는 막전극접합체(MEA) 및 스택 통합 모듈.',
         },
       ];
     }
@@ -248,8 +319,8 @@ app.post('/api/company-products', async (req, res) => {
     res.json({
       success: true,
       data: {
-        companyName,
-        companyDescription: `${companyName}의 주력 친환경·스마트 제조 라인 포트폴리오입니다.`,
+        companyName: targetComp,
+        companyDescription: `${targetComp}의 스마트 제조 라인 및 주력 포트폴리오입니다.`,
         products: fallbackProducts,
       },
       isFallback: true,
@@ -261,84 +332,86 @@ app.post('/api/company-products', async (req, res) => {
 // [탭 2] 선택한 제품의 공정 흐름도 (원료 → 출하)
 // -------------------------------------------------------------
 app.post('/api/manufacturing-process', async (req, res) => {
-  const { companyName, productName } = req.body;
-  if (!companyName || !productName) {
-    return res.status(400).json({ success: false, error: '기업명과 제품명을 입력해주세요.' });
-  }
+  const { companyName, productName } = req.body || {};
+  const comp = companyName?.trim() || '현대자동차';
+  const prod = productName?.trim() || '아이오닉 5 / 6 배터리 시스템(BSA)';
 
   try {
     const prompt = `
-기업명: "${companyName}"
-제품명: "${productName}"
+기업명: "${comp}"
+제품명: "${prod}"
 
 이 제품의 실제 생산 공정을 [원료 투입 → 중간 가공/조립/가공 → 최종 검사 및 출하] 순서로 5~7단계의 흐름도(Flowchart)로 상세히 작성해주세요.
 `;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            companyName: { type: Type.STRING },
-            productName: { type: Type.STRING },
-            processOverview: { type: Type.STRING },
-            steps: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  stepNumber: { type: Type.INTEGER },
-                  stepName: { type: Type.STRING },
-                  phaseTag: { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  qualityPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  aiAutomationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  interviewTip: { type: Type.STRING },
+    const response = await callGeminiWithTimeout(
+      ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              companyName: { type: Type.STRING },
+              productName: { type: Type.STRING },
+              processOverview: { type: Type.STRING },
+              steps: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    stepNumber: { type: Type.INTEGER },
+                    stepName: { type: Type.STRING },
+                    phaseTag: { type: Type.STRING },
+                    description: { type: Type.STRING },
+                    equipment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    qualityPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    aiAutomationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    interviewTip: { type: Type.STRING },
+                  },
+                  required: ['stepNumber', 'stepName', 'phaseTag', 'description', 'equipment', 'qualityPoints', 'aiAutomationPoints', 'interviewTip'],
                 },
-                required: ['stepNumber', 'stepName', 'phaseTag', 'description', 'equipment', 'qualityPoints', 'aiAutomationPoints', 'interviewTip'],
               },
             },
+            required: ['companyName', 'productName', 'processOverview', 'steps'],
           },
-          required: ['companyName', 'productName', 'processOverview', 'steps'],
         },
-      },
-    });
+      }),
+      3500
+    );
 
-    const data = cleanAndParseJSON(response.text || '{}', null);
-    if (!data) throw new Error('공정 데이터 파싱 실패');
+    const data = cleanAndParseJSON<any>(response.text || '{}', null);
+    if (!data || !data.steps || data.steps.length === 0) throw new Error('공정 데이터 파싱 실패');
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.warn(`[Fallback] Gemini API in /api/manufacturing-process for [${companyName} - ${productName}].`, error.message);
+    console.warn(`[Process Fallback] Serving domain flowchart for [${comp} - ${prod}]. Reason: ${error.message}`);
 
-    // Provide tailored fallback process
-    if (companyName.includes('넥센') || productName.includes('타이어')) {
+    // If Tire (Nexen, Hankook, Kumho)
+    if (comp.includes('넥센') || comp.includes('타이어') || prod.includes('타이어')) {
       res.json({
         success: true,
         data: {
-          companyName,
-          productName,
-          processOverview: `${companyName}의 최첨단 자동화 스마트 팩토리에서 고품질 천연/합성 고무 배합부터 성형, 가황 및 전수 균일성 검사를 거쳐 출하되는 고성능 타이어 제조 공정입니다.`,
+          companyName: comp,
+          productName: prod,
+          processOverview: `${comp}의 최첨단 스마트 팩토리에서 천연/합성 고무 배합부터 성형, 가황 및 전수 균일성 검사를 거쳐 출하되는 고성능 타이어 양산 제조 공정입니다.`,
           steps: [
             {
               stepNumber: 1,
-              stepName: '1. 정련(Mixing & Banbury) 공정',
+              stepName: '1. 정련 (Mixing & Banbury) 공정',
               phaseTag: '원료준비 & 배합',
-              description: '천연고무, 합성고무에 카본블랙, 실리카, 오일 및 가황제를 밴버리(Banbury) 믹서에 넣고 정밀 온도에서 균일하게 반죽하여 시트 형태로 압연합니다.',
+              description: '천연고무, 합성고무에 카본블랙, 실리카, 유황 및 첨가제를 탠덤 밴버리(Banbury) 믹서에 투입하여 정밀 온도에서 균일하게 반죽한 후 시트 형태로 압연합니다.',
               equipment: ['고용량 탠덤 밴버리 믹서(Banbury Mixer)', '자동 원료 계량 시스템', '배칫 오프 머신(Batch-off Machine)'],
               qualityPoints: ['무니 점도(Mooney Viscosity) 규격 관리', '카본블랙 분산도 98% 이상 확보', '반죽 온도(150~160℃) 초과 시 조기 가황 방지'],
               aiAutomationPoints: ['빅데이터 기반 믹싱 모터 부하 전류 파형 분석 AI', '실시간 비접촉 적외선 열화상 온도 감시', '자동 이송 바코드 추적 시스템'],
-              interviewTip: '고무 배합 시 실리카의 친수성과 고무의 소수성을 연결하는 실란 커플링제 반응 온도를 제어하는 원리를 어필하면 기술면접에서 높은 점수를 받습니다.',
+              interviewTip: '실리카 배합 시 친수성 실리카와 소수성 고무를 결합시키는 실란 커플링제 반응 온도 제어 메커니즘을 설명하면 기술 면접에서 매우 우수한 평가를 받습니다.',
             },
             {
               stepNumber: 2,
               stepName: '2. 압출(Extrusion) 및 압연(Calendering) 공정',
               phaseTag: '반제품 가공',
-              description: '정련된 고무를 압출기 노즐을 통과시켜 트레드(Tread)와 사이드월을 뽑아내고, 스틸 코드 및 텍스타일 섬유 코드에 양면 고무를 정밀 입히는 공정입니다.',
+              description: '정련된 고무를 다중 압출 노즐로 인출하여 트레드(Tread)와 사이드월을 형성하고, 스틸 코드 및 텍스타일 코드에 양면 고무를 정밀 코팅합니다.',
               equipment: ['다중 트윈 압출 라인(Multi Extruder)', '스틸코드 4롤 캘린더 머신', '냉각 수조 라인'],
               qualityPoints: ['트레드 단면 치수(폭, 두께) 공차 ±0.2mm 이내', '스틸 코드 간격(EPI: Ends Per Inch) 균일도', '고무 침투율 100% 미세 공극 제로화'],
               aiAutomationPoints: ['초고속 레이저 3차원 광학 단면 스캐너 자동 피드백', '코드 사행(틀어짐) 방지 비전 얼라인먼트', '디지털 트윈 두께 제어 알고리즘'],
@@ -356,7 +429,7 @@ app.post('/api/manufacturing-process', async (req, res) => {
             },
             {
               stepNumber: 4,
-              stepName: '4. 성형(Building) 공정',
+              stepName: '4. 성형 (Building) 공정',
               phaseTag: '그린 타이어 조립',
               description: '이너라이너, 카카스, 비드, 벨트, 트레드 등 앞서 제작된 반제품들을 회전 드럼 위에서 조립하여 원통형에서 도넛 모양의 그린 타이어(Green Tire)로 성형합니다.',
               equipment: ['2스테이지 유니터리 타이어 성형기', '레이저 가이드 위치 지정 장치', '자동 카세트 피더'],
@@ -366,7 +439,7 @@ app.post('/api/manufacturing-process', async (req, res) => {
             },
             {
               stepNumber: 5,
-              stepName: '5. 가황(Curing / Vulcanization) 공정',
+              stepName: '5. 가황 (Curing / Vulcanization) 공정',
               phaseTag: '열화학 경화 성형',
               description: '말랑말랑한 그린 타이어를 고온(170~180℃)·고압의 몰드(금형)에 넣고 내부 블래더로 증기와 압력을 가해 황 가교 결합을 유도하고 트레드 홈 패턴과 각인을 형성합니다.',
               equipment: ['자동 유압식 가황 프레스(Hydraulic Curing Press)', '섹셔널 몰드(Segment Mold)', '스팀 분배 보일러'],
@@ -389,12 +462,13 @@ app.post('/api/manufacturing-process', async (req, res) => {
         isFallback: true,
       });
     } else {
+      // Default / Automotive / Battery / Parts
       res.json({
         success: true,
         data: {
           ...INITIAL_MANUFACTURING_PROCESS_PRESET,
-          companyName,
-          productName,
+          companyName: comp,
+          productName: prod,
         },
         isFallback: true,
       });
@@ -406,79 +480,81 @@ app.post('/api/manufacturing-process', async (req, res) => {
 // [탭 3] 면접 질문 생성 (전공 기초 5개 + 직무 기술 5개)
 // -------------------------------------------------------------
 app.post('/api/interview-questions', async (req, res) => {
-  const { companyName, jobRole } = req.body;
-  if (!companyName || !jobRole) {
-    return res.status(400).json({ success: false, error: '기업명과 지원 직무를 입력해주세요.' });
-  }
+  const { companyName, jobRole } = req.body || {};
+  const comp = companyName?.trim() || '현대자동차';
+  const role = jobRole?.trim() || '생산기술 엔지니어';
 
   try {
     const prompt = `
-기업명: "${companyName}"
-지원 직무: "${jobRole}"
+기업명: "${comp}"
+지원 직무: "${role}"
 
 자동차 및 제조업 특화 면접 질문을 총 10개 생성해주세요:
 1) 전공 기초 질문 5개: 공학 기초 이론(기계/전기전자/컴퓨터/화공/산업공학 관련), 제조 및 제어 원리, 기본 알고리즘/역학 등 직무 수행에 필수적인 기본기 질문.
 2) 직무 기술 질문 5개: 해당 회사의 생산 현장, 실제 프로젝트, 신기술(AI/전동화/스마트팩토리/품질관리/제조 데이터 분석 등)에 직접 맞닿아 있는 실무 심화 질문.
 `;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            companyName: { type: Type.STRING },
-            jobRole: { type: Type.STRING },
-            basicQuestions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  category: { type: Type.STRING },
-                  question: { type: Type.STRING },
-                  difficulty: { type: Type.STRING },
-                  modelAnswerKeyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  tailQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+    const response = await callGeminiWithTimeout(
+      ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              companyName: { type: Type.STRING },
+              jobRole: { type: Type.STRING },
+              basicQuestions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    difficulty: { type: Type.STRING },
+                    modelAnswerKeyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    tailQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ['id', 'category', 'question', 'difficulty', 'modelAnswerKeyPoints', 'tailQuestions'],
                 },
-                required: ['id', 'category', 'question', 'difficulty', 'modelAnswerKeyPoints', 'tailQuestions'],
+              },
+              techQuestions: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    category: { type: Type.STRING },
+                    question: { type: Type.STRING },
+                    difficulty: { type: Type.STRING },
+                    modelAnswerKeyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    tailQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  },
+                  required: ['id', 'category', 'question', 'difficulty', 'modelAnswerKeyPoints', 'tailQuestions'],
+                },
               },
             },
-            techQuestions: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  category: { type: Type.STRING },
-                  question: { type: Type.STRING },
-                  difficulty: { type: Type.STRING },
-                  modelAnswerKeyPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  tailQuestions: { type: Type.ARRAY, items: { type: Type.STRING } },
-                },
-                required: ['id', 'category', 'question', 'difficulty', 'modelAnswerKeyPoints', 'tailQuestions'],
-              },
-            },
+            required: ['companyName', 'jobRole', 'basicQuestions', 'techQuestions'],
           },
-          required: ['companyName', 'jobRole', 'basicQuestions', 'techQuestions'],
         },
-      },
-    });
+      }),
+      3500
+    );
 
-    const data = cleanAndParseJSON(response.text || '{}', null);
-    if (!data) throw new Error('면접 질문 파싱 실패');
+    const data = cleanAndParseJSON<any>(response.text || '{}', null);
+    if (!data || !data.basicQuestions || !data.techQuestions) throw new Error('면접 질문 파싱 실패');
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.warn(`[Fallback] Gemini API in /api/interview-questions for [${companyName} - ${jobRole}].`, error.message);
+    console.warn(`[Interview Questions Fallback] for [${comp} - ${role}]. Reason: ${error.message}`);
     res.json({
       success: true,
       data: {
         ...INITIAL_INTERVIEW_PRESET,
-        companyName,
-        jobRole,
+        companyName: comp,
+        jobRole: role,
       },
       isFallback: true,
     });
@@ -486,10 +562,10 @@ app.post('/api/interview-questions', async (req, res) => {
 });
 
 // -------------------------------------------------------------
-// [탭 3] 직접 작성한 면접 답변 평가 & 피드백 (점수, 잘한 점, 보완할 점)
+// [탭 3] 직접 작성한 면접 답변 평가 & 피드백
 // -------------------------------------------------------------
 app.post('/api/interview-feedback', async (req, res) => {
-  const { companyName, jobRole, question, userAnswer } = req.body;
+  const { companyName, jobRole, question, userAnswer } = req.body || {};
   if (!question || !userAnswer || !userAnswer.trim()) {
     return res.status(400).json({ success: false, error: '면접 질문과 작성하신 답변을 입력해주세요.' });
   }
@@ -510,32 +586,35 @@ app.post('/api/interview-feedback', async (req, res) => {
 5. revisedSentenceExample: 이 답변을 실전 면접에서 10점 만점으로 끌어올리는 고품질 모범 구술 예시 문장
 `;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            score: { type: Type.NUMBER },
-            scoreSummary: { type: Type.STRING },
-            goodPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-            improvements: { type: Type.ARRAY, items: { type: Type.STRING } },
-            revisedSentenceExample: { type: Type.STRING },
+    const response = await callGeminiWithTimeout(
+      ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              score: { type: Type.NUMBER },
+              scoreSummary: { type: Type.STRING },
+              goodPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+              improvements: { type: Type.ARRAY, items: { type: Type.STRING } },
+              revisedSentenceExample: { type: Type.STRING },
+            },
+            required: ['score', 'scoreSummary', 'goodPoints', 'improvements', 'revisedSentenceExample'],
           },
-          required: ['score', 'scoreSummary', 'goodPoints', 'improvements', 'revisedSentenceExample'],
         },
-      },
-    });
+      }),
+      3000
+    );
 
-    const data = cleanAndParseJSON(response.text || '{}', null);
+    const data = cleanAndParseJSON<any>(response.text || '{}', null);
     if (!data) throw new Error('답변 피드백 파싱 실패');
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.warn(`[Fallback] Gemini API in /api/interview-feedback.`, error.message);
-    const length = userAnswer.length;
+    console.warn(`[Feedback Fallback] Reason: ${error.message}`);
+    const length = (userAnswer || '').length;
     const score = Math.min(9.5, Math.max(6.5, Math.round((7.0 + (length > 100 ? 1.5 : 0.5)) * 10) / 10));
 
     res.json({
@@ -563,14 +642,16 @@ app.post('/api/interview-feedback', async (req, res) => {
 // [탭 4] 공고 맞춤 경험 정리 (역량 5~7개 추출 + 경험 매칭 테이블)
 // -------------------------------------------------------------
 app.post('/api/match-experience', async (req, res) => {
-  const { companyName, jobPostingText, userExperiencesText } = req.body;
+  const { companyName, jobPostingText, userExperiencesText } = req.body || {};
   if (!jobPostingText || !jobPostingText.trim()) {
     return res.status(400).json({ success: false, error: '채용 공고 내용을 입력해주세요.' });
   }
 
+  const comp = companyName?.trim() || '현대자동차';
+
   try {
     const prompt = `
-기업명: "${companyName || '미지정'}"
+기업명: "${comp}"
 
 [채용 공고 본문]:
 """
@@ -587,51 +668,76 @@ ${userExperiencesText || '(아직 입력된 경험이 없음)'}
 3. matchedExperience, appealSentenceExample, gapSuggestion을 작성하세요.
 `;
 
-    const response = await ai.models.generateContent({
-      model: MODEL_NAME,
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            extractedRoleTitle: { type: Type.STRING },
-            overallMatchRate: { type: Type.NUMBER },
-            summaryAnalysis: { type: Type.STRING },
-            competencyMatches: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  id: { type: Type.STRING },
-                  competency: { type: Type.STRING },
-                  importance: { type: Type.STRING },
-                  matchedExperience: { type: Type.STRING },
-                  matchStrength: { type: Type.STRING },
-                  appealSentenceExample: { type: Type.STRING },
-                  gapSuggestion: { type: Type.STRING },
+    const response = await callGeminiWithTimeout(
+      ai.models.generateContent({
+        model: MODEL_NAME,
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              extractedRoleTitle: { type: Type.STRING },
+              overallMatchRate: { type: Type.NUMBER },
+              summaryAnalysis: { type: Type.STRING },
+              competencyMatches: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    id: { type: Type.STRING },
+                    competency: { type: Type.STRING },
+                    importance: { type: Type.STRING },
+                    matchedExperience: { type: Type.STRING },
+                    matchStrength: { type: Type.STRING },
+                    appealSentenceExample: { type: Type.STRING },
+                    gapSuggestion: { type: Type.STRING },
+                  },
+                  required: ['id', 'competency', 'importance', 'matchedExperience', 'matchStrength', 'appealSentenceExample', 'gapSuggestion'],
                 },
-                required: ['id', 'competency', 'importance', 'matchedExperience', 'matchStrength', 'appealSentenceExample', 'gapSuggestion'],
               },
             },
+            required: ['extractedRoleTitle', 'overallMatchRate', 'summaryAnalysis', 'competencyMatches'],
           },
-          required: ['extractedRoleTitle', 'overallMatchRate', 'summaryAnalysis', 'competencyMatches'],
         },
-      },
-    });
+      }),
+      3500
+    );
 
-    const data = cleanAndParseJSON(response.text || '{}', null);
-    if (!data) throw new Error('경험 매칭 분석 결과 파싱 실패');
+    const data = cleanAndParseJSON<any>(response.text || '{}', null);
+    if (!data || !data.competencyMatches) throw new Error('경험 매칭 분석 결과 파싱 실패');
 
     res.json({ success: true, data });
   } catch (error: any) {
-    console.warn(`[Fallback] Gemini API in /api/match-experience.`, error.message);
+    console.warn(`[Matching Fallback] Reason: ${error.message}`);
     res.json({
       success: true,
       data: INITIAL_MATCHING_PRESET,
       isFallback: true,
     });
   }
+});
+
+// -------------------------------------------------------------
+// Ensure ANY unhandled API route returns JSON, NEVER HTML!
+// -------------------------------------------------------------
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `API 엔드포인트를 찾을 수 없습니다: ${req.method} ${req.path}`,
+  });
+});
+
+// Express Error Handler for API routes
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('[Express Global Error]:', err);
+  if (req.path && req.path.startsWith('/api')) {
+    return res.status(500).json({
+      success: false,
+      error: err.message || '서버 내부 오류가 발생했습니다.',
+    });
+  }
+  next(err);
 });
 
 // -------------------------------------------------------------

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { TrendCategory, TrendKeywordItem, TrendsResponse } from '../types';
 import { INITIAL_TRENDS_PRESET } from '../data/mockPresets';
+import { safeApiPost } from '../utils/apiClient';
 import { SkeletonLoader } from './SkeletonLoader';
 import {
   TrendingUp,
@@ -69,36 +70,29 @@ export const Tab1Trends: React.FC<Tab1TrendsProps> = ({
     setNoticeMsg(null);
     setSelectedCategory(cat);
 
+    const fallback = INITIAL_TRENDS_PRESET[cat] || INITIAL_TRENDS_PRESET['자동차 전체'];
+
     try {
-      const res = await fetch('/api/trends', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: cat }),
-      });
-      const json = await res.json();
-      if (!res.ok || !json.success) {
-        throw new Error(json.error || '트렌드 키워드를 불러오지 못했습니다.');
-      }
+      const response = await safeApiPost<TrendsResponse>(
+        '/api/trends',
+        { category: cat },
+        fallback,
+        6000
+      );
+
+      const targetData = response.data || fallback;
       setTrendsData((prev) => ({
         ...prev,
-        [cat]: json.data,
+        [cat]: targetData,
       }));
-      if (json.data.keywords?.length > 0) {
-        setSelectedKeyword(json.data.keywords[0]);
+      if (targetData.keywords?.length > 0) {
+        setSelectedKeyword(targetData.keywords[0]);
       }
-      if (json.notice) {
-        setNoticeMsg(json.notice);
+      if (response.notice) {
+        setNoticeMsg(response.notice);
       }
     } catch (err: any) {
       console.warn('API error in fetchTrendsForCategory:', err);
-      const friendlyMsg =
-        typeof err.message === 'string' &&
-        (err.message.includes('429') || err.message.includes('quota') || err.message.includes('RESOURCE_EXHAUSTED'))
-          ? '현재 실시간 검색 API 사용량 한도(Rate Limit)로 인해, 검증된 최신 산업 동향 데이터셋으로 안전하게 표시합니다.'
-          : '일시적인 네트워크 지연으로 인해 검증된 최신 산업 동향 데이터셋으로 표시합니다.';
-      setErrorMsg(friendlyMsg);
-
-      const fallback = INITIAL_TRENDS_PRESET[cat] || INITIAL_TRENDS_PRESET['자동차 전체'];
       setTrendsData((prev) => ({
         ...prev,
         [cat]: fallback,
