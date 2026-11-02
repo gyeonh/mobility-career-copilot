@@ -21,6 +21,9 @@ import {
   ArrowRight,
   TrendingUp,
   Award,
+  CheckSquare,
+  FileText,
+  Target,
 } from 'lucide-react';
 
 interface Tab4MatchingProps {
@@ -131,18 +134,17 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
   const getStrengthBadge = (strength: string) => {
     switch (strength) {
       case '상':
-        return 'bg-emerald-100 text-emerald-800 border-emerald-300';
+        return 'bg-emerald-100 text-emerald-800 border-emerald-300 font-black';
       case '중':
-        return 'bg-blue-100 text-blue-800 border-blue-300';
+        return 'bg-blue-100 text-blue-900 border-blue-300 font-bold';
       case '하':
-        return 'bg-amber-100 text-amber-800 border-amber-300';
+        return 'bg-amber-100 text-amber-900 border-amber-300 font-bold';
       case '보완 필요':
       default:
-        return 'bg-rose-100 text-rose-800 border-rose-300 font-bold';
+        return 'bg-rose-100 text-rose-800 border-rose-300 font-black';
     }
   };
 
-  // Generate text report for clipboard or download
   const generateFormattedReport = (): string => {
     let report = `==========================================================\n`;
     report += `[오토커리어] 채용 공고 맞춤 경험 정리 리포트\n`;
@@ -166,7 +168,6 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
     return report;
   };
 
-  // Action: Copy to clipboard
   const handleCopyReport = async () => {
     try {
       const text = generateFormattedReport();
@@ -178,7 +179,6 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
     }
   };
 
-  // Action: Download text file
   const handleDownloadReport = () => {
     const text = generateFormattedReport();
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -192,56 +192,65 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
     URL.revokeObjectURL(url);
   };
 
+  const highCount = matchingResult?.competencyMatches?.filter((m) => m.matchStrength === '상').length || 0;
+  const needCount = matchingResult?.competencyMatches?.filter((m) => m.matchStrength === '보완 필요').length || 0;
+
   return (
     <div className="space-y-6">
-      {/* Top Banner & Preset Loader */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
-        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+      {/* Top Banner: Guide & Preset Loaders */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span className="p-1 rounded-md bg-blue-100 text-blue-900">
-                <FileCheck className="w-4 h-4" />
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-blue-950 text-white flex items-center justify-center text-xs font-black">
+                4
               </span>
-              <span>채용 공고 맞춤 경험 정리 & 역량 매칭 분석기</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              공고 본문에서 요구 역량 5~7개를 자동 추출하고, 나의 경험과 1:1 매칭하여 [강도(상/중/하/보완필요)] 및 [실전 어필 문장]을 제시합니다.
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                채용 공고 맞춤 경험 정리 & 1:1 매칭 분석
+              </h2>
+              <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                자소서 & 면접 한 줄 어필
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              공고 본문을 붙여넣으면 Gemini가 핵심 요구 역량 5~7개를 자동 추출하고, 나의 경험과 1:1 매칭하여 자소서에 바로 쓸 수 있는 실전 어필 문장을 작성합니다.
             </p>
           </div>
 
-          <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap">
-            <span className="text-xs text-slate-400 font-medium">샘플 공고:</span>
+          {/* Quick Preset Buttons */}
+          <div className="flex items-center gap-2 self-start lg:self-auto flex-wrap text-xs">
+            <span className="text-slate-400 font-bold">샘플 채우기:</span>
             <button
               onClick={() => {
                 setJobPostingText(SAMPLE_JOB_POSTINGS.hyundai_smart_factory.text);
                 setCompanyName('현대자동차');
               }}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition"
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition border border-slate-200"
             >
-              현대차 스마트팩토리
+              현대차 스마트팩토리 공고
             </button>
             <button
               onClick={() => {
                 setJobPostingText(SAMPLE_JOB_POSTINGS.kia_production_tech.text);
                 setCompanyName('기아');
               }}
-              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium transition"
+              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold transition border border-slate-200"
             >
-              기아 생산기술
+              기아 생산기술 공고
             </button>
           </div>
         </div>
 
         {/* 2-Column Input Area */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2 border-t border-slate-100">
-          {/* Left Input: Job Posting */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-slate-100">
+          {/* Left: Job Posting Text */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
-              <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                <Building2 className="w-3.5 h-3.5 text-blue-900" />
-                <span>채용 공고 텍스트 (JD 붙여넣기)</span>
+              <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                <FileText className="w-4 h-4 text-blue-950" />
+                <span>1단계: 채용 공고(JD) 텍스트 붙여넣기</span>
               </label>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs text-slate-400 font-medium">
                 {jobPostingText.length}자
               </span>
             </div>
@@ -249,27 +258,27 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
               rows={7}
               value={jobPostingText}
               onChange={(e) => setJobPostingText(e.target.value)}
-              placeholder="채용 공고의 담당 업무, 지원 자격, 우대 사항을 그대로 복사해 붙여넣으세요."
-              className="w-full p-3 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-900 focus:ring-1 focus:ring-blue-900 outline-hidden transition leading-relaxed font-mono"
+              placeholder="담당 업무, 자격 요건, 우대 사항을 채용 사이트에서 그대로 복사해 붙여넣으세요."
+              className="w-full p-3.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-950 focus:ring-1 focus:ring-blue-950 outline-hidden transition leading-relaxed font-mono"
             />
           </div>
 
-          {/* Right Input: User Experiences */}
+          {/* Right: User Experiences */}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                  <Award className="w-3.5 h-3.5 text-blue-900" />
-                  <span>내 경험 목록 (프로젝트, 인턴, 학과 실습 등)</span>
+                <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                  <Award className="w-4 h-4 text-blue-950" />
+                  <span>2단계: 내 경험/프로젝트/학습 이력</span>
                 </label>
                 <button
                   onClick={() => setUserExperiencesText(SAMPLE_USER_EXPERIENCES)}
-                  className="text-[10px] text-blue-900 hover:underline font-semibold"
+                  className="text-[11px] text-blue-900 hover:underline font-bold"
                 >
-                  (샘플 경험 채우기)
+                  (샘플 경험 불러오기)
                 </button>
               </div>
-              <span className="text-[11px] text-slate-400">
+              <span className="text-xs text-slate-400 font-medium">
                 {userExperiencesText.length}자
               </span>
             </div>
@@ -277,18 +286,18 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
               rows={7}
               value={userExperiencesText}
               onChange={(e) => setUserExperiencesText(e.target.value)}
-              placeholder="참여한 프로젝트, 인턴, 연구, 동아리, 전공 실습 경험을 자유로운 개조식으로 입력하세요."
-              className="w-full p-3 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-900 focus:ring-1 focus:ring-blue-900 outline-hidden transition leading-relaxed"
+              placeholder="참여한 프로젝트, 인턴, 동아리, 학과 과제, 자격증 경험을 자유롭게 작성하세요."
+              className="w-full p-3.5 text-xs rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-950 focus:ring-1 focus:ring-blue-950 outline-hidden transition leading-relaxed"
             />
           </div>
         </div>
 
-        {/* Analyze Button */}
+        {/* Action Button: Run Matching */}
         <div className="flex justify-end pt-2 border-t border-slate-100">
           <button
             onClick={handleRunMatching}
             disabled={isLoading || !jobPostingText.trim()}
-            className="px-6 py-2.5 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs sm:text-sm font-bold transition shadow-sm disabled:opacity-50 flex items-center gap-2"
+            className="px-6 py-3 rounded-xl bg-blue-950 hover:bg-blue-900 text-white text-xs sm:text-sm font-bold transition shadow-sm disabled:opacity-50 flex items-center gap-2"
           >
             {isLoading ? (
               <>
@@ -298,7 +307,7 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
             ) : (
               <>
                 <Sparkles className="w-4 h-4 text-sky-300" />
-                <span>공고 역량 추출 및 1:1 매칭 분석 실행</span>
+                <span>3단계: 공고 역량 추출 & 1:1 매칭 분석 실행</span>
               </>
             )}
           </button>
@@ -314,7 +323,7 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
         </div>
       )}
 
-      {/* Main Matching Output Section */}
+      {/* Main Matching Dashboard & Table */}
       {isLoading ? (
         <SkeletonLoader
           type="matching"
@@ -322,72 +331,85 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
         />
       ) : matchingResult ? (
         <div className="space-y-6">
-          {/* Summary Dashboard Card */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs">
+          {/* Top KPI Dashboard Card */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-100">
               <div>
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-blue-100 text-blue-900">
+                  <span className="text-xs font-bold px-2 py-0.5 rounded bg-blue-100 text-blue-950">
                     분석 직무
                   </span>
-                  <h3 className="text-base font-bold text-slate-900">
+                  <h3 className="text-base sm:text-lg font-black text-slate-900">
                     {matchingResult.extractedRoleTitle}
                   </h3>
                 </div>
-                <p className="text-xs text-slate-500">
-                  타깃 기업: <strong className="text-blue-950">{companyName || '미지정'}</strong>
+                <p className="text-xs text-slate-500 font-medium">
+                  타깃 기업: <strong className="text-blue-950 font-bold">{companyName || '미지정'}</strong>
                 </p>
               </div>
 
-              {/* Match Rate Gauge */}
-              <div className="flex items-center gap-3 bg-slate-50 px-4 py-2.5 rounded-xl border border-slate-200">
-                <div className="text-right">
-                  <div className="text-[11px] text-slate-500 font-medium">종합 매칭 일치도</div>
-                  <div className="text-xl font-black text-blue-950">
-                    {matchingResult.overallMatchRate}%
+              {/* Match Rate & Status Pills */}
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-3 bg-slate-50 px-4 py-3 rounded-xl border border-slate-200">
+                  <div className="text-right">
+                    <div className="text-[11px] text-slate-500 font-bold">종합 매칭 일치도</div>
+                    <div className="text-2xl font-black text-blue-950 leading-none mt-0.5">
+                      {matchingResult.overallMatchRate}%
+                    </div>
+                  </div>
+                  <div className="w-16 h-3 bg-slate-200 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-blue-900 to-sky-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, matchingResult.overallMatchRate)}%` }}
+                    />
                   </div>
                 </div>
-                <div className="w-14 h-2.5 bg-slate-200 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-blue-700 to-sky-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, matchingResult.overallMatchRate)}%` }}
-                  />
+
+                <div className="hidden sm:flex flex-col gap-1 text-xs font-bold">
+                  <span className="text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                    강력 매칭(상): {highCount}개
+                  </span>
+                  <span className="text-rose-700 bg-rose-50 px-2.5 py-1 rounded-lg border border-rose-200">
+                    보완 필요: {needCount}개
+                  </span>
                 </div>
               </div>
             </div>
 
-            <div className="mt-4 p-4 rounded-xl bg-slate-50/80 border border-slate-200/80 text-xs text-slate-700 leading-relaxed">
-              <strong className="text-slate-900 font-bold block mb-1">
-                📌 종합 컨설팅 총평
-              </strong>
-              {matchingResult.summaryAnalysis}
+            {/* Total Summary */}
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-xs sm:text-sm text-slate-800 leading-relaxed">
+              <div className="font-extrabold text-slate-900 text-xs uppercase tracking-wider mb-1 flex items-center gap-1.5">
+                <Target className="w-4 h-4 text-blue-950" />
+                <span>종합 컨설팅 총평</span>
+              </div>
+              <p className="font-medium">{matchingResult.summaryAnalysis}</p>
             </div>
 
-            {/* Export Action Buttons */}
-            <div className="flex items-center justify-end gap-2 mt-4 pt-3 border-t border-slate-100">
+            {/* Action Buttons: Copy & Download */}
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
               <button
                 onClick={handleCopyReport}
-                className="px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                className="px-4 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
               >
                 {copySuccess ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
+                    <Check className="w-4 h-4 text-emerald-600" />
                     <span className="text-emerald-700 font-bold">복사 완료!</span>
                   </>
                 ) : (
                   <>
-                    <Copy className="w-3.5 h-3.5 text-slate-500" />
-                    <span>결과 전체 복사</span>
+                    <Copy className="w-4 h-4 text-slate-500" />
+                    <span>리포트 전체 복사</span>
                   </>
                 )}
               </button>
 
               <button
                 onClick={handleDownloadReport}
-                className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-blue-950 text-white text-xs font-semibold transition flex items-center gap-1.5 shadow-xs"
+                className="px-4 py-2 rounded-xl bg-blue-950 hover:bg-blue-900 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs"
               >
-                <Download className="w-3.5 h-3.5" />
-                <span>텍스트 파일로 내려받기</span>
+                <Download className="w-4 h-4" />
+                <span>텍스트 파일로 내려받기 (.txt)</span>
               </button>
             </div>
           </div>
@@ -395,26 +417,26 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
           {/* 1:1 Matching Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between">
-              <h4 className="text-xs sm:text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-blue-900" />
+              <h4 className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-blue-950" />
                 <span>
-                  공고 요구 역량 5~7개 vs 내 경험 1:1 매칭 & 어필 문장 표
+                  공고 요구 역량 vs 내 경험 1:1 매칭 & 자소서 어필 문장 표
                 </span>
               </h4>
-              <span className="text-xs text-slate-400">
-                총 {matchingResult.competencyMatches?.length || 0}개 요구 역량 분석
+              <span className="text-xs text-slate-400 font-medium">
+                총 {matchingResult.competencyMatches?.length || 0}개 핵심 역량 분석됨
               </span>
             </div>
 
-            {/* Desktop Table View */}
+            {/* Responsive Table */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse text-xs">
+              <table className="w-full text-left border-collapse text-xs sm:text-sm">
                 <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
-                    <th className="py-3 px-4 w-1/4">공고 요구 역량</th>
-                    <th className="py-3 px-4 w-1/4">매칭된 내 경험</th>
-                    <th className="py-3 px-3 w-24 text-center">매칭 강도</th>
-                    <th className="py-3 px-4 w-1/3">실전 어필 문장 예시 & 보완점</th>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-600 font-extrabold">
+                    <th className="py-3 px-4 w-1/4">1. 회사 요구 역량</th>
+                    <th className="py-3 px-4 w-1/4">2. 매칭된 내 경험</th>
+                    <th className="py-3 px-3 w-28 text-center">3. 매칭 강도</th>
+                    <th className="py-3 px-4 w-1/3">4. 실전 어필 문장 & 보완점</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -427,14 +449,14 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
                           isWeak ? 'bg-amber-50/20' : ''
                         }`}
                       >
-                        {/* Col 1: 요구 역량 */}
+                        {/* 1. 요구 역량 */}
                         <td className="py-4 px-4 align-top">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <span className="w-5 h-5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold flex items-center justify-center shrink-0">
+                          <div className="flex items-center gap-1.5 mb-1.5">
+                            <span className="w-5 h-5 rounded-full bg-slate-200 text-slate-800 text-[10px] font-black flex items-center justify-center shrink-0">
                               {idx + 1}
                             </span>
                             <span
-                              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                              className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
                                 item.importance === '필수'
                                   ? 'bg-rose-100 text-rose-800'
                                   : item.importance === '우대'
@@ -445,29 +467,29 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
                               {item.importance}
                             </span>
                           </div>
-                          <div className="font-bold text-slate-900 leading-snug">
+                          <div className="font-extrabold text-slate-900 leading-snug">
                             {item.competency}
                           </div>
                         </td>
 
-                        {/* Col 2: 매칭 경험 */}
-                        <td className="py-4 px-4 align-top text-slate-700 leading-relaxed">
+                        {/* 2. 매칭 경험 */}
+                        <td className="py-4 px-4 align-top text-slate-700 leading-relaxed text-xs">
                           {item.matchStrength === '보완 필요' ? (
-                            <span className="text-rose-600 font-semibold italic flex items-center gap-1">
-                              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                            <span className="text-rose-600 font-bold italic flex items-center gap-1 bg-rose-50 p-2.5 rounded-lg border border-rose-200">
+                              <AlertCircle className="w-4 h-4 shrink-0" />
                               <span>직접 매칭 경험 없음 (보완 필요)</span>
                             </span>
                           ) : (
-                            <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-100 text-slate-800">
+                            <div className="p-3 rounded-xl bg-slate-50 border border-slate-100 text-slate-800 font-medium">
                               {item.matchedExperience}
                             </div>
                           )}
                         </td>
 
-                        {/* Col 3: 매칭 강도 */}
+                        {/* 3. 매칭 강도 */}
                         <td className="py-4 px-3 align-top text-center">
                           <span
-                            className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold border ${getStrengthBadge(
+                            className={`inline-block px-3 py-1.5 rounded-full text-xs font-black border ${getStrengthBadge(
                               item.matchStrength
                             )}`}
                           >
@@ -475,21 +497,21 @@ export const Tab4Matching: React.FC<Tab4MatchingProps> = ({
                           </span>
                         </td>
 
-                        {/* Col 4: 어필 문장 & 보완 방법 제안 */}
+                        {/* 4. 어필 문장 예시 & 보완점 */}
                         <td className="py-4 px-4 align-top space-y-2">
-                          <div className="p-2.5 rounded-lg bg-blue-50/60 border border-blue-100 text-blue-950 leading-relaxed font-medium">
-                            <span className="text-[10px] font-bold text-blue-800 block mb-0.5 uppercase tracking-wide">
-                              💬 실전 어필 문장 예시:
+                          <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 text-blue-950 leading-relaxed font-semibold text-xs">
+                            <span className="text-[10px] font-black text-blue-900 block mb-1 uppercase tracking-wide">
+                              💬 자소서/면접 실전 어필 문장 예시:
                             </span>
                             &ldquo;{item.appealSentenceExample}&rdquo;
                           </div>
 
                           {/* Gap Suggestion if Weak or Missing */}
                           {item.gapSuggestion && (
-                            <div className="p-2.5 rounded-lg bg-amber-50/80 border border-amber-200 text-amber-900 text-[11px] leading-relaxed">
-                              <span className="font-bold block mb-0.5 text-amber-800 flex items-center gap-1">
-                                <HelpCircle className="w-3.5 h-3.5 shrink-0" />
-                                <span>보완 방법 제안:</span>
+                            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 text-xs leading-relaxed font-medium">
+                              <span className="font-extrabold block mb-1 text-amber-900 flex items-center gap-1">
+                                <HelpCircle className="w-3.5 h-3.5 shrink-0 text-amber-700" />
+                                <span>부족한 역량 보완 방법 제안:</span>
                               </span>
                               {item.gapSuggestion}
                             </div>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { TabType } from './types';
 import { Header } from './components/Header';
+import { CareerRoadmapBanner } from './components/CareerRoadmapBanner';
 import { Tab1Trends } from './components/Tab1Trends';
 import { Tab2Process } from './components/Tab2Process';
 import { Tab3Interview } from './components/Tab3Interview';
@@ -66,7 +67,14 @@ export default function App() {
       />
 
       {/* Main Content Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 md:py-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-5 md:py-7">
+        {/* 4-Step Career Preparation Roadmap Guide Banner */}
+        <CareerRoadmapBanner
+          activeTab={activeTab}
+          setActiveTab={setActiveTab}
+          companyName={companyName}
+        />
+
         {activeTab === 'trends' && (
           <Tab1Trends
             onSelectCompany={handleSelectCompanyFromTrends}

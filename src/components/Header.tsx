@@ -8,6 +8,7 @@ import {
   Building2,
   Check,
   Edit2,
+  ChevronDown,
 } from 'lucide-react';
 
 interface HeaderProps {
@@ -25,6 +26,7 @@ const POPULAR_COMPANIES = [
   'LG에너지솔루션',
   'HL만도',
   '포스코퓨처엠',
+  '현대위아',
 ];
 
 export const Header: React.FC<HeaderProps> = ({
@@ -35,31 +37,36 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const [isEditingCompany, setIsEditingCompany] = useState(false);
   const [tempCompany, setTempCompany] = useState(companyName);
+  const [showCompanyMenu, setShowCompanyMenu] = useState(false);
 
-  const tabs: { id: TabType; label: string; icon: React.ReactNode; desc: string }[] = [
+  const tabs: { id: TabType; step: string; label: string; icon: React.ReactNode; desc: string }[] = [
     {
       id: 'trends',
-      label: '산업 트렌드 키워드',
+      step: '1단계',
+      label: '산업 트렌드',
       icon: <TrendingUp className="w-4 h-4" />,
-      desc: '실시간 검색 & 버블 클라우드',
+      desc: '최신 이슈 & 키워드',
     },
     {
       id: 'process',
-      label: '기업별 제조 공정',
+      step: '2단계',
+      label: '기업 제조공정',
       icon: <Factory className="w-4 h-4" />,
-      desc: '원료→출하 흐름도 & AI 자동화',
+      desc: '원료→출하 흐름도',
     },
     {
       id: 'interview',
+      step: '3단계',
       label: '면접 학습',
       icon: <GraduationCap className="w-4 h-4" />,
-      desc: '전공·직무 질문 & AI 모의답변',
+      desc: '전공·직무 기출 & AI 채점',
     },
     {
       id: 'matching',
-      label: '공고 맞춤 경험 정리',
+      step: '4단계',
+      label: '공고 경험매칭',
       icon: <FileCheck className="w-4 h-4" />,
-      desc: '요구역량 추출 & 매칭 리포트',
+      desc: '역량 매칭 & 어필 문장',
     },
   ];
 
@@ -68,37 +75,60 @@ export const Header: React.FC<HeaderProps> = ({
       setCompanyName(tempCompany.trim());
     }
     setIsEditingCompany(false);
+    setShowCompanyMenu(false);
   };
 
   return (
     <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-xs">
-      {/* Top Banner / Brand & Global Company Bar */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between py-3 gap-3 border-b border-slate-100">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-900 via-blue-950 to-slate-900 flex items-center justify-center text-white shadow-sm ring-2 ring-blue-900/10">
-              <Factory className="w-5 h-5 text-sky-400" />
+        {/* Main Navbar */}
+        <div className="flex items-center justify-between py-3 gap-4">
+          {/* Zone 1: Brand & Logo */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-950 flex items-center justify-center text-white shadow-xs">
+              <Factory className="w-4 h-4 text-sky-400" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-bold tracking-tight text-slate-900">
-                  오토커리어 <span className="text-blue-900">AutoCareer</span>
-                </h1>
-                <span className="text-[11px] font-semibold tracking-wide uppercase px-2 py-0.5 rounded-full bg-blue-50 text-blue-800 border border-blue-200/60">
-                  제조업 취업 도우미
+                <span className="text-base sm:text-lg font-black tracking-tight text-slate-900">
+                  오토커리어 <span className="text-blue-900 font-extrabold">AutoCareer</span>
+                </span>
+                <span className="hidden sm:inline text-[11px] font-semibold text-blue-900 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200/60">
+                  자동차·제조업 취준 도우미
                 </span>
               </div>
-              <p className="text-xs text-slate-500 hidden sm:block">
-                자동차·부품·소재 맞춤형 트렌드 / 공정 / 면접 / 역량 매칭 올인원 플랫폼
-              </p>
             </div>
           </div>
 
-          {/* Synchronized Company Selector */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-200 text-xs">
+          {/* Zone 2: 4-Step Navigation Tabs */}
+          <nav className="hidden md:flex items-center gap-1.5 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+            {tabs.map((tab) => {
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all duration-150 whitespace-nowrap ${
+                    isActive
+                      ? 'bg-blue-950 text-white shadow-sm font-bold'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                  }`}
+                >
+                  <span className={`text-[10px] ${isActive ? 'text-sky-300' : 'text-slate-400'}`}>
+                    {tab.step}
+                  </span>
+                  <span>{tab.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+
+          {/* Zone 3: Global Target Company Synchronizer */}
+          <div className="relative shrink-0">
+            <div className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs shadow-xs">
               <Building2 className="w-3.5 h-3.5 text-blue-900 shrink-0" />
-              <span className="text-slate-500 font-medium shrink-0">타깃 기업:</span>
+              <span className="text-slate-500 font-medium">분석 기업:</span>
+
               {isEditingCompany ? (
                 <div className="flex items-center gap-1">
                   <input
@@ -108,88 +138,93 @@ export const Header: React.FC<HeaderProps> = ({
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveCompany()}
                     autoFocus
                     placeholder="기업명 입력"
-                    className="w-28 px-2 py-0.5 text-xs font-semibold bg-white border border-blue-600 rounded text-slate-900 outline-hidden"
+                    className="w-24 px-1.5 py-0.5 text-xs font-bold bg-white border border-blue-900 rounded text-slate-900 outline-hidden"
                   />
                   <button
                     onClick={handleSaveCompany}
                     className="p-1 rounded bg-blue-900 text-white hover:bg-blue-800 transition"
-                    title="저장"
                   >
                     <Check className="w-3 h-3" />
                   </button>
                 </div>
               ) : (
                 <button
-                  onClick={() => {
-                    setTempCompany(companyName);
-                    setIsEditingCompany(true);
-                  }}
-                  className="group flex items-center gap-1.5 text-blue-950 font-bold hover:text-blue-700 transition"
-                  title="클릭하여 기업명 수정 (모든 탭에 자동 연동)"
+                  onClick={() => setShowCompanyMenu(!showCompanyMenu)}
+                  className="flex items-center gap-1 font-black text-blue-950 hover:text-blue-700 transition"
+                  title="클릭하여 기업 변경"
                 >
                   <span className="underline decoration-blue-300 underline-offset-2">
                     {companyName}
                   </span>
-                  <Edit2 className="w-3 h-3 text-slate-400 group-hover:text-blue-700 transition" />
+                  <ChevronDown className="w-3 h-3 text-slate-400" />
                 </button>
               )}
             </div>
 
-            {/* Quick popular chips dropdown / pills */}
-            <div className="hidden lg:flex items-center gap-1 text-[11px] text-slate-500">
-              <span className="text-slate-400">추천:</span>
-              {POPULAR_COMPANIES.slice(0, 4).map((comp) => (
-                <button
-                  key={comp}
-                  onClick={() => setCompanyName(comp)}
-                  className={`px-2 py-0.5 rounded transition ${
-                    companyName === comp
-                      ? 'bg-blue-900 text-white font-medium shadow-xs'
-                      : 'bg-white hover:bg-slate-100 text-slate-600 border border-slate-200'
-                  }`}
-                >
-                  {comp}
-                </button>
-              ))}
-            </div>
+            {/* Dropdown Menu for Quick Company Selection */}
+            {showCompanyMenu && !isEditingCompany && (
+              <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-200 p-2 z-50 text-xs">
+                <div className="px-2 py-1.5 text-slate-400 font-semibold text-[11px] border-b border-slate-100 flex items-center justify-between">
+                  <span>추천 타깃 기업 선택</span>
+                  <button
+                    onClick={() => {
+                      setTempCompany(companyName);
+                      setIsEditingCompany(true);
+                      setShowCompanyMenu(false);
+                    }}
+                    className="text-blue-900 hover:underline font-bold"
+                  >
+                    직접 입력
+                  </button>
+                </div>
+                <div className="py-1 space-y-0.5 max-h-48 overflow-y-auto">
+                  {POPULAR_COMPANIES.map((comp) => (
+                    <button
+                      key={comp}
+                      onClick={() => {
+                        setCompanyName(comp);
+                        setShowCompanyMenu(false);
+                      }}
+                      className={`w-full text-left px-2.5 py-1.5 rounded-lg flex items-center justify-between ${
+                        companyName === comp
+                          ? 'bg-blue-50 text-blue-950 font-bold'
+                          : 'text-slate-700 hover:bg-slate-50'
+                      }`}
+                    >
+                      <span>{comp}</span>
+                      {companyName === comp && <Check className="w-3.5 h-3.5 text-blue-900" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 4 Navigation Tabs */}
-        <nav className="flex items-center justify-between overflow-x-auto no-scrollbar pt-1">
-          <div className="flex space-x-1 sm:space-x-2 min-w-max py-2">
-            {tabs.map((tab, idx) => {
+        {/* Mobile Tab Bar Header Row */}
+        <div className="md:hidden pb-2 overflow-x-auto no-scrollbar">
+          <div className="flex gap-1.5 min-w-max">
+            {tabs.map((tab) => {
               const isActive = activeTab === tab.id;
               return (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`relative flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl font-medium text-xs sm:text-sm transition-all duration-150 ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 ${
                     isActive
-                      ? 'bg-blue-900 text-white shadow-sm ring-1 ring-blue-950'
-                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
+                      ? 'bg-blue-950 text-white font-bold'
+                      : 'bg-slate-100 text-slate-600'
                   }`}
                 >
-                  <span
-                    className={`p-1.5 rounded-lg transition-colors ${
-                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
-                    }`}
-                  >
-                    {tab.icon}
+                  <span className={`text-[10px] ${isActive ? 'text-sky-300' : 'text-slate-400'}`}>
+                    {tab.step}
                   </span>
-                  <div className="text-left">
-                    <div className="flex items-center gap-1.5 leading-tight">
-                      <span className={`text-[11px] font-bold ${isActive ? 'text-blue-200' : 'text-slate-400'}`}>
-                        0{idx + 1}
-                      </span>
-                      <span className="font-semibold">{tab.label}</span>
-                    </div>
-                  </div>
+                  <span>{tab.label}</span>
                 </button>
               );
             })}
           </div>
-        </nav>
+        </div>
       </div>
     </header>
   );

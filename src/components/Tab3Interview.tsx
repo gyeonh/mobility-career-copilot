@@ -23,6 +23,8 @@ import {
   Check,
   RefreshCw,
   Lightbulb,
+  ArrowRight,
+  BookOpen,
 } from 'lucide-react';
 
 interface Tab3InterviewProps {
@@ -58,7 +60,7 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
 
   // Accordion state for "답 보기" (revealed question IDs)
   const [revealedAnswers, setRevealedAnswers] = useState<Record<string, boolean>>({
-    'bq-1': true, // default first one opened
+    'bq-1': true,
   });
 
   // State for user answers & evaluations per question ID
@@ -68,19 +70,16 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
   const [feedbacks, setFeedbacks] = useState<Record<string, InterviewFeedbackResponse>>({});
   const [isEvaluating, setIsEvaluating] = useState<Record<string, boolean>>({});
 
-  // Sync prop company changes
   React.useEffect(() => {
     setInputCompany(companyName);
   }, [companyName]);
 
-  // Sync prop job role changes
   React.useEffect(() => {
     if (presetJobRole) {
       setJobRole(presetJobRole);
     }
   }, [presetJobRole]);
 
-  // Request 10 Questions from Gemini
   const handleGenerateQuestions = async () => {
     if (!inputCompany.trim() || !jobRole.trim()) return;
 
@@ -102,7 +101,6 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
         throw new Error(json.error || '면접 질문을 생성하지 못했습니다.');
       }
       setInterviewData(json.data);
-      // Reset answered state
       setRevealedAnswers({});
       setFeedbacks({});
     } catch (err: any) {
@@ -113,7 +111,6 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
     }
   };
 
-  // Submit User Answer to Gemini for 10-point evaluation
   const handleSubmitAnswer = async (q: InterviewQuestionItem) => {
     const text = userAnswers[q.id]?.trim();
     if (!text) {
@@ -164,49 +161,56 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Search & Filter Card */}
-      <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs space-y-4">
+      {/* Top Setting Bar: Company & Role */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div>
-            <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-              <span className="p-1 rounded-md bg-blue-100 text-blue-900">
-                <GraduationCap className="w-4 h-4" />
+            <div className="flex items-center gap-2">
+              <span className="w-6 h-6 rounded-lg bg-blue-950 text-white flex items-center justify-center text-xs font-black">
+                3
               </span>
-              <span>기업·직무 맞춤 면접 학습 & AI 첨삭</span>
-            </h2>
-            <p className="text-xs text-slate-500 mt-1">
-              기업명과 지원 직무를 기반으로 전공 기초 질문 5개와 실무 직무 기술 질문 5개를 생성하고, 직접 작성한 답변을 10점 만점으로 엄격히 평가합니다.
+              <h2 className="text-base sm:text-lg font-black text-slate-900 tracking-tight">
+                직무 모의 면접 & 10점 만점 AI 첨삭
+              </h2>
+              <span className="text-xs font-bold text-blue-900 bg-blue-50 px-2 py-0.5 rounded-md border border-blue-200">
+                실전 기술면접 시뮬레이션
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-slate-600 mt-1">
+              타깃 기업과 지원 직무를 설정하면, 실제 면접관 어조의 전공 기초 5제 + 직무 실무 5제를 제시하고 직접 작성한 답변을 10점 만점으로 정밀 평가합니다.
             </p>
           </div>
 
           {/* Input Controls */}
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs">
               <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="text-slate-400 font-medium">기업:</span>
               <input
                 type="text"
                 value={inputCompany}
                 onChange={(e) => setInputCompany(e.target.value)}
-                placeholder="기업명 (예: 현대자동차)"
-                className="w-28 sm:w-32 bg-transparent font-semibold text-slate-900 outline-hidden"
+                placeholder="기업명"
+                className="w-24 sm:w-28 bg-transparent font-bold text-slate-900 outline-hidden"
               />
             </div>
 
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-slate-50 text-xs">
+            <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-slate-50 text-xs">
               <Briefcase className="w-4 h-4 text-slate-400 shrink-0" />
+              <span className="text-slate-400 font-medium">직무:</span>
               <input
                 type="text"
                 value={jobRole}
                 onChange={(e) => setJobRole(e.target.value)}
-                placeholder="지원 직무 (예: AI 엔지니어)"
-                className="w-32 sm:w-36 bg-transparent font-semibold text-slate-900 outline-hidden"
+                placeholder="지원 직무"
+                className="w-32 sm:w-36 bg-transparent font-bold text-slate-900 outline-hidden"
               />
             </div>
 
             <button
               onClick={handleGenerateQuestions}
               disabled={isLoadingQuestions}
-              className="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs sm:text-sm font-semibold transition shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
+              className="px-4 py-2 rounded-xl bg-blue-950 hover:bg-blue-900 text-white text-xs sm:text-sm font-bold transition shadow-xs disabled:opacity-50 flex items-center justify-center gap-1.5 shrink-0"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${isLoadingQuestions ? 'animate-spin' : ''}`} />
               <span>면접 질문 생성</span>
@@ -215,17 +219,15 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
         </div>
 
         {/* Quick Job Chips */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-slate-100 text-xs">
-          <span className="text-slate-400 font-medium mr-1">직무 추천:</span>
+        <div className="flex items-center gap-1.5 flex-wrap pt-3 border-t border-slate-100 text-xs">
+          <span className="text-slate-400 font-bold mr-1">직무 바로 선택:</span>
           {COMMON_JOB_ROLES.map((role) => (
             <button
               key={role}
-              onClick={() => {
-                setJobRole(role);
-              }}
-              className={`px-2.5 py-1 rounded-lg border transition ${
+              onClick={() => setJobRole(role)}
+              className={`px-2.5 py-1 rounded-lg border font-medium transition ${
                 jobRole === role
-                  ? 'bg-blue-900 text-white border-blue-950 font-bold'
+                  ? 'bg-blue-950 text-white border-blue-950 font-bold shadow-xs'
                   : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-200'
               }`}
             >
@@ -244,24 +246,24 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
         </div>
       )}
 
-      {/* Category Tabs: ① 전공 기초 5개 vs ② 직무 기술 5개 */}
-      <div className="flex items-center justify-between border-b border-slate-200 pb-1">
+      {/* Two Question Tracks: ① 전공 기초 5제 vs ② 직무 기술 5제 */}
+      <div className="flex items-center justify-between border-b border-slate-200 pb-2">
         <div className="flex space-x-2">
           <button
             onClick={() => setActiveCategoryTab('basic')}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition flex items-center gap-2 ${
               activeCategoryTab === 'basic'
-                ? 'bg-blue-900 text-white shadow-xs'
+                ? 'bg-blue-950 text-white shadow-xs'
                 : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
             }`}
           >
             <span>① 전공 기초 질문</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                activeCategoryTab === 'basic' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                activeCategoryTab === 'basic' ? 'bg-sky-400 text-slate-950' : 'bg-slate-100 text-slate-600'
               }`}
             >
-              5문항
+              기초 5문항
             </span>
           </button>
 
@@ -269,35 +271,35 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
             onClick={() => setActiveCategoryTab('tech')}
             className={`px-4 py-2.5 rounded-xl font-bold text-xs sm:text-sm transition flex items-center gap-2 ${
               activeCategoryTab === 'tech'
-                ? 'bg-blue-900 text-white shadow-xs'
+                ? 'bg-blue-950 text-white shadow-xs'
                 : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
             }`}
           >
-            <span>② 직무 기술 질문</span>
+            <span>② 직무 실무 질문</span>
             <span
-              className={`text-[10px] px-1.5 py-0.5 rounded-full ${
-                activeCategoryTab === 'tech' ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+              className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                activeCategoryTab === 'tech' ? 'bg-sky-400 text-slate-950' : 'bg-slate-100 text-slate-600'
               }`}
             >
-              5문항
+              실무 5문항
             </span>
           </button>
         </div>
 
         <div className="text-xs text-slate-500 hidden sm:block">
-          <strong className="text-slate-900">{interviewData.companyName}</strong> ·{' '}
-          <span className="text-blue-900 font-semibold">{interviewData.jobRole}</span>
+          현재 타깃: <strong className="text-slate-900">{interviewData.companyName}</strong> ·{' '}
+          <span className="text-blue-950 font-bold">{interviewData.jobRole}</span>
         </div>
       </div>
 
-      {/* Main Questions List */}
+      {/* Main Question Cards */}
       {isLoadingQuestions ? (
         <SkeletonLoader
           type="interview"
           message={`[${inputCompany} - ${jobRole}] 맞춤형 전공/실무 기술 면접 질문과 모범 가이드라인을 생성 중...`}
         />
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-5">
           {activeQuestions.map((q, idx) => {
             const isRevealed = !!revealedAnswers[q.id];
             const feedback = feedbacks[q.id];
@@ -313,14 +315,14 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
                 <div className="p-5 sm:p-6 space-y-3">
                   <div className="flex items-center justify-between flex-wrap gap-2">
                     <div className="flex items-center gap-2">
-                      <span className="w-6 h-6 rounded-lg bg-blue-100 text-blue-900 text-xs font-black flex items-center justify-center shrink-0">
+                      <span className="w-7 h-7 rounded-lg bg-blue-950 text-white text-xs font-black flex items-center justify-center shrink-0">
                         Q{idx + 1}
                       </span>
-                      <span className="text-xs font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-700">
                         {q.category}
                       </span>
                       <span
-                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
+                        className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
                           q.difficulty === '심화'
                             ? 'bg-rose-50 text-rose-700 border border-rose-200'
                             : q.difficulty === '중급'
@@ -334,14 +336,14 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
 
                     <button
                       onClick={() => toggleRevealAnswer(q.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition ${
                         isRevealed
                           ? 'bg-slate-100 text-slate-800'
-                          : 'bg-blue-50 text-blue-900 hover:bg-blue-100'
+                          : 'bg-blue-50 text-blue-950 hover:bg-blue-100'
                       }`}
                     >
                       <Lightbulb className="w-3.5 h-3.5 text-amber-500" />
-                      <span>{isRevealed ? '답변 가이드 접기' : '답 보기 & 꼬리 질문'}</span>
+                      <span>{isRevealed ? '모범답변 접기' : '모범 답변 핵심 & 꼬리 질문 보기'}</span>
                       {isRevealed ? (
                         <ChevronUp className="w-3.5 h-3.5" />
                       ) : (
@@ -350,43 +352,43 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
                     </button>
                   </div>
 
-                  <h3 className="text-sm sm:text-base font-bold text-slate-900 leading-snug">
-                    {q.question}
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900 leading-snug">
+                    &ldquo;{q.question}&rdquo;
                   </h3>
                 </div>
 
                 {/* Collapsible Section: Model Answer Key Points & Tail Questions */}
                 {isRevealed && (
-                  <div className="px-5 sm:px-6 pb-5 pt-1 border-t border-slate-100 bg-slate-50/60 space-y-4">
+                  <div className="px-5 sm:px-6 pb-5 pt-1 border-t border-slate-100 bg-slate-50/70 space-y-4">
                     {/* Model Answer Key Points */}
-                    <div className="p-4 rounded-xl bg-white border border-slate-200/80 space-y-2">
+                    <div className="p-4 rounded-xl bg-white border border-slate-200 space-y-2">
                       <div className="flex items-center gap-2 text-xs font-bold text-blue-950 uppercase tracking-wider">
                         <CheckCircle2 className="w-4 h-4 text-blue-900" />
-                        <span>모범 답변 핵심 포인트 (STAR & 필수 키워드)</span>
+                        <span>면접관이 기대하는 모범 답변 핵심 키워드 (STAR 원리)</span>
                       </div>
                       <ul className="space-y-1.5 pl-1">
                         {q.modelAnswerKeyPoints?.map((pt, i) => (
-                          <li key={i} className="text-xs text-slate-700 flex items-start gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-blue-900 mt-1.5 shrink-0" />
-                            <span className="leading-relaxed">{pt}</span>
+                          <li key={i} className="text-xs sm:text-sm text-slate-700 flex items-start gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-950 mt-2 shrink-0" />
+                            <span className="leading-relaxed font-medium">{pt}</span>
                           </li>
                         ))}
                       </ul>
                     </div>
 
-                    {/* Tail Questions (꼬리 질문 2개) */}
-                    <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80 space-y-2">
-                      <div className="flex items-center gap-2 text-xs font-bold text-amber-900 uppercase tracking-wider">
+                    {/* Tail Questions */}
+                    <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200 space-y-2">
+                      <div className="flex items-center gap-2 text-xs font-bold text-amber-950 uppercase tracking-wider">
                         <HelpCircle className="w-4 h-4 text-amber-700" />
-                        <span>예상 꼬리 질문 (2문항)</span>
+                        <span>예상 꼬리 질문 (면접관의 후속 압박 질문)</span>
                       </div>
                       <div className="space-y-2 pl-1">
                         {q.tailQuestions?.map((tq, i) => (
                           <div
                             key={i}
-                            className="text-xs text-amber-950 flex items-start gap-2 bg-white/80 p-2.5 rounded-lg border border-amber-100"
+                            className="text-xs sm:text-sm text-amber-950 flex items-start gap-2 bg-white/90 p-2.5 rounded-lg border border-amber-200/60"
                           >
-                            <span className="font-bold text-amber-800 shrink-0">꼬리 {i + 1}:</span>
+                            <span className="font-extrabold text-amber-900 shrink-0">꼬리 Q{i + 1}:</span>
                             <span className="leading-relaxed font-medium">{tq}</span>
                           </div>
                         ))}
@@ -395,14 +397,14 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
                   </div>
                 )}
 
-                {/* Direct Answer Field & AI Feedback */}
+                {/* Direct Answer Field & AI Evaluation */}
                 <div className="p-5 sm:p-6 border-t border-slate-100 bg-white space-y-3">
                   <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
-                      <MessageSquare className="w-3.5 h-3.5 text-blue-900" />
-                      <span>직접 답변하기 (실전 모의 면접)</span>
+                    <label className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-1.5">
+                      <MessageSquare className="w-4 h-4 text-blue-950" />
+                      <span>직접 답변하기 (면접장에서 말하듯 입력하세요)</span>
                     </label>
-                    <span className="text-[11px] text-slate-400">
+                    <span className="text-xs text-slate-400 font-medium">
                       {answerText.length}자 입력됨
                     </span>
                   </div>
@@ -413,47 +415,47 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
                     onChange={(e) =>
                       setUserAnswers((prev) => ({ ...prev, [q.id]: e.target.value }))
                     }
-                    placeholder="면접관 앞에서 구술하듯 본인의 답변을 작성해보세요. (근거, 수치, 공학적 원리 포함 시 고득점)"
-                    className="w-full p-3 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-900 focus:ring-1 focus:ring-blue-900 outline-hidden transition leading-relaxed"
+                    placeholder="실제 기술면접관 앞에서 구술하듯 본인의 답변을 적어보세요. (공학적 원리나 수치 포함 시 고득점)"
+                    className="w-full p-3.5 text-xs sm:text-sm rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-blue-950 focus:ring-1 focus:ring-blue-950 outline-hidden transition leading-relaxed"
                   />
 
                   <div className="flex justify-end">
                     <button
                       onClick={() => handleSubmitAnswer(q)}
                       disabled={evaluating || !answerText.trim()}
-                      className="px-4 py-2 rounded-xl bg-blue-900 hover:bg-blue-800 text-white text-xs font-bold transition shadow-xs disabled:opacity-40 flex items-center gap-1.5"
+                      className="px-5 py-2.5 rounded-xl bg-blue-950 hover:bg-blue-900 text-white text-xs sm:text-sm font-bold transition shadow-xs disabled:opacity-40 flex items-center gap-2"
                     >
                       {evaluating ? (
                         <>
                           <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                          <span>Gemini 면접관 평가 중...</span>
+                          <span>Gemini AI 면접관 정밀 채점 중...</span>
                         </>
                       ) : (
                         <>
                           <Send className="w-3.5 h-3.5" />
-                          <span>답변 제출 및 첨삭 받기</span>
+                          <span>답변 제출 및 10점 만점 채점 받기</span>
                         </>
                       )}
                     </button>
                   </div>
 
-                  {/* AI Evaluation Feedback Card */}
+                  {/* AI Evaluation Report Card */}
                   {feedback && (
-                    <div className="mt-4 p-5 rounded-2xl bg-gradient-to-br from-slate-50 via-blue-50/30 to-white border border-blue-200/80 shadow-xs space-y-4 animate-in fade-in duration-200">
+                    <div className="mt-4 p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-slate-50 via-blue-50/20 to-white border border-blue-200 shadow-sm space-y-4 animate-in fade-in duration-200">
                       {/* Score Header */}
                       <div className="flex items-center justify-between pb-3 border-b border-blue-100">
-                        <div className="flex items-center gap-3">
-                          <div className="w-12 h-12 rounded-xl bg-blue-900 text-white flex flex-col items-center justify-center font-black shadow-xs">
-                            <span className="text-base leading-none">{feedback.score}</span>
-                            <span className="text-[9px] text-blue-200 font-normal">/ 10점</span>
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-blue-950 text-white flex flex-col items-center justify-center font-black shadow-sm">
+                            <span className="text-lg leading-none text-sky-300">{feedback.score}</span>
+                            <span className="text-[9px] text-blue-200">/ 10점</span>
                           </div>
                           <div>
                             <div className="flex items-center gap-2">
-                              <span className="text-xs font-bold text-slate-900">
-                                AI 현업 면접관 평가
+                              <span className="text-sm font-extrabold text-slate-900">
+                                현업 면접관 평가 결과
                               </span>
                               <span
-                                className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                                className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
                                   feedback.score >= 8
                                     ? 'bg-emerald-100 text-emerald-800'
                                     : feedback.score >= 6
@@ -468,53 +470,51 @@ export const Tab3Interview: React.FC<Tab3InterviewProps> = ({
                                   : '노력 요함'}
                               </span>
                             </div>
-                            <p className="text-xs text-slate-600 mt-0.5">
+                            <p className="text-xs text-slate-600 mt-1 font-medium">
                               {feedback.scoreSummary}
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Good Points vs Improvements Grid */}
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                        {/* 잘한 점 */}
-                        <div className="p-3.5 rounded-xl bg-white border border-emerald-200/80 space-y-1.5">
-                          <div className="text-xs font-bold text-emerald-800 flex items-center gap-1.5">
-                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                            <span>잘한 점</span>
+                      {/* Good Points vs Improvements */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                        <div className="p-4 rounded-xl bg-white border border-emerald-200 space-y-2">
+                          <div className="text-xs font-bold text-emerald-900 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            <span>잘한 점 (칭찬 포인트)</span>
                           </div>
-                          <ul className="space-y-1">
+                          <ul className="space-y-1.5">
                             {feedback.goodPoints?.map((gp, i) => (
                               <li key={i} className="text-xs text-slate-700 flex items-start gap-1.5">
-                                <span className="w-1 h-1 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
-                                <span>{gp}</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 mt-1.5 shrink-0" />
+                                <span className="font-medium">{gp}</span>
                               </li>
                             ))}
                           </ul>
                         </div>
 
-                        {/* 보완할 점 */}
-                        <div className="p-3.5 rounded-xl bg-white border border-amber-200/80 space-y-1.5">
-                          <div className="text-xs font-bold text-amber-800 flex items-center gap-1.5">
-                            <AlertCircle className="w-3.5 h-3.5 text-amber-600" />
-                            <span>보완할 점</span>
+                        <div className="p-4 rounded-xl bg-white border border-amber-200 space-y-2">
+                          <div className="text-xs font-bold text-amber-900 flex items-center gap-1.5">
+                            <AlertCircle className="w-4 h-4 text-amber-600" />
+                            <span>보완할 점 (개선 제안)</span>
                           </div>
-                          <ul className="space-y-1">
+                          <ul className="space-y-1.5">
                             {feedback.improvements?.map((imp, i) => (
                               <li key={i} className="text-xs text-slate-700 flex items-start gap-1.5">
-                                <span className="w-1 h-1 rounded-full bg-amber-600 mt-1.5 shrink-0" />
-                                <span>{imp}</span>
+                                <span className="w-1.5 h-1.5 rounded-full bg-amber-600 mt-1.5 shrink-0" />
+                                <span className="font-medium">{imp}</span>
                               </li>
                             ))}
                           </ul>
                         </div>
                       </div>
 
-                      {/* Revised High-Score Sentence Example */}
-                      <div className="p-3.5 rounded-xl bg-blue-900 text-white space-y-1.5">
+                      {/* 10-Point Model Sentence Example */}
+                      <div className="p-4 rounded-xl bg-blue-950 text-white space-y-1.5">
                         <div className="flex items-center gap-1.5 text-sky-300 text-xs font-bold">
-                          <Sparkles className="w-3.5 h-3.5" />
-                          <span>10점 만점을 위한 모범 구술 예시</span>
+                          <Sparkles className="w-4 h-4" />
+                          <span>실전 10점 만점을 위한 모범 구술 예시 문장</span>
                         </div>
                         <p className="text-xs sm:text-sm text-blue-50 leading-relaxed font-medium">
                           &ldquo;{feedback.revisedSentenceExample}&rdquo;
