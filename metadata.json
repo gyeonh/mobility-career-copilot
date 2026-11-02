@@ -1,0 +1,6 @@
+{
+  "name": "오토커리어 | 자동차·제조업 취업 준비 도우미",
+  "description": "자동차 및 제조업 취업 준비생을 위한 실시간 산업 트렌드, 기업별 제조 공정 흐름도, 직무 맞춤 면접 학습 및 공고 기반 경험 매칭 도우미",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
